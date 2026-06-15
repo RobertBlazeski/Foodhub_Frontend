@@ -23,5 +23,5 @@ export function updateMenuItem(id, dto) {
 }
 
 export function deleteMenuItem(id) {
-  return client.delete(`/MenuItem/${id}`).then((res) => res.data);
+  return client.delete(`/MenuItem/${id}`);
 }

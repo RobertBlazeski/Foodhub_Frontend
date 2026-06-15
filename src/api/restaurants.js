@@ -17,5 +17,5 @@ export function updateRestaurant(id, dto) {
 }
 
 export function deleteRestaurant(id) {
-  return client.delete(`/Restaurant/${id}`).then((res) => res.data);
+  return client.delete(`/Restaurant/${id}`)
 }

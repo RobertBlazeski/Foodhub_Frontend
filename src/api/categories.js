@@ -17,5 +17,5 @@ export function updateCategory(id, dto) {
 }
 
 export function deleteCategory(id) {
-  return client.delete(`/Category/${id}`).then((res) => res.data);
+  return client.delete(`/Category/${id}`);
 }
