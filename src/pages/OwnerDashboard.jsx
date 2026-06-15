@@ -130,6 +130,19 @@ export default function OwnerDashboard() {
     }
   }
 
+  async function handleDeleteRestaurant(r) {
+    if (!window.confirm(`Delete "${r.name}"? This cannot be undone.`)) return;
+    setError("");
+    try {
+      await restaurantsApi.deleteRestaurant(r.id);
+      if (selectedRestaurantId === r.id) setSelectedRestaurantId(null);
+      flash("Restaurant deleted.");
+      loadAll();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   // ----- Menu items -----
   function openCreateMenuItem() {
     setEditingMenuItem(null);
@@ -185,9 +198,7 @@ export default function OwnerDashboard() {
         flash("Menu item added.");
       }
       setShowMenuForm(false);
-      const items = await menuItemsApi.getMenuItemsByRestaurant(
-        selectedRestaurantId
-      );
+      const items = await menuItemsApi.getMenuItemsByRestaurant(selectedRestaurantId);
       setMenuItems(items);
     } catch (err) {
       setError(err.message);
@@ -206,9 +217,20 @@ export default function OwnerDashboard() {
         restaurantId: item.restaurantId,
         categoryId: item.categoryId,
       });
-      const items = await menuItemsApi.getMenuItemsByRestaurant(
-        selectedRestaurantId
-      );
+      const items = await menuItemsApi.getMenuItemsByRestaurant(selectedRestaurantId);
+      setMenuItems(items);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleDeleteMenuItem(item) {
+    if (!window.confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
+    setError("");
+    try {
+      await menuItemsApi.deleteMenuItem(item.id);
+      flash("Menu item deleted.");
+      const items = await menuItemsApi.getMenuItemsByRestaurant(selectedRestaurantId);
       setMenuItems(items);
     } catch (err) {
       setError(err.message);
@@ -227,6 +249,19 @@ export default function OwnerDashboard() {
       const cats = await categoriesApi.getCategories();
       setCategories(cats);
       flash("Category added.");
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleDeleteCategory(c) {
+    if (!window.confirm(`Delete category "${c.name}"? This cannot be undone.`)) return;
+    setError("");
+    try {
+      await categoriesApi.deleteCategory(c.id);
+      const cats = await categoriesApi.getCategories();
+      setCategories(cats);
+      flash("Category deleted.");
     } catch (err) {
       setError(err.message);
     }
@@ -397,12 +432,20 @@ export default function OwnerDashboard() {
                     <p className="muted">{r.address}</p>
                     <div className="restaurant-card-meta">
                       <span className="rating">★ {r.rating?.toFixed(1) ?? "—"}</span>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => openEditRestaurant(r)}
-                      >
-                        Edit
-                      </button>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => openEditRestaurant(r)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => handleDeleteRestaurant(r)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -596,6 +639,12 @@ export default function OwnerDashboard() {
                               >
                                 {item.isAvailable ? "Mark unavailable" : "Mark available"}
                               </button>
+                              <button
+                                className="btn btn-danger btn-sm"
+                                onClick={() => handleDeleteMenuItem(item)}
+                              >
+                                Delete
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -632,8 +681,15 @@ export default function OwnerDashboard() {
           ) : (
             <div className="category-pills">
               {categories.map((c) => (
-                <span className="pill" key={c.id}>
+                <span className="pill" key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                   {c.name}
+                  <button
+                    className="btn btn-danger btn-sm"
+                    style={{ padding: "1px 8px", fontSize: "11px" }}
+                    onClick={() => handleDeleteCategory(c)}
+                  >
+                    ✕
+                  </button>
                 </span>
               ))}
             </div>
