@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import * as restaurantsApi from "../api/restaurants";
 import * as menuItemsApi from "../api/menuItems";
 import * as categoriesApi from "../api/categories";
+import * as ordersApi from "../api/orders";
 
 const PLACEHOLDER_IMAGE = "https://placehold.co/400x300?text=FoodHub";
 
@@ -23,6 +24,16 @@ const EMPTY_MENU_ITEM = {
   categoryId: "",
 };
 
+const ORDER_STATUSES = ["Pending", "Confirmed", "Preparing", "Delivered", "Cancelled"];
+
+const STATUS_BADGE = {
+  Pending:   "badge-pending",
+  Confirmed: "badge-confirmed",
+  Preparing: "badge-preparing",
+  Delivered: "badge-delivered",
+  Cancelled: "badge-cancelled",
+};
+
 export default function OwnerDashboard() {
   const { user } = useAuth();
   const [tab, setTab] = useState("restaurants");
@@ -31,6 +42,10 @@ export default function OwnerDashboard() {
   const [categories, setCategories] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState(null);
+
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,6 +65,13 @@ export default function OwnerDashboard() {
     loadAll();
   }, []);
 
+  // Load orders when switching to orders tab
+  useEffect(() => {
+    if (tab === "orders") {
+      loadOrders();
+    }
+  }, [tab]);
+
   function loadAll() {
     setLoading(true);
     Promise.all([restaurantsApi.getRestaurants(), categoriesApi.getCategories()])
@@ -59,6 +81,15 @@ export default function OwnerDashboard() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  }
+
+  function loadOrders() {
+    setOrdersLoading(true);
+    ordersApi
+      .getAllOrders()
+      .then(setOrders)
+      .catch((err) => setError(err.message))
+      .finally(() => setOrdersLoading(false));
   }
 
   const myRestaurants = useMemo(
@@ -267,6 +298,21 @@ export default function OwnerDashboard() {
     }
   }
 
+  // ----- Orders -----
+  async function handleUpdateOrderStatus(orderId, newStatus) {
+    setUpdatingOrderId(orderId);
+    setError("");
+    try {
+      await ordersApi.updateOrderStatus(orderId, newStatus);
+      flash(`Order #${orderId} marked as ${newStatus}.`);
+      loadOrders();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  }
+
   const categoryMap = useMemo(() => {
     const map = new Map();
     categories.forEach((c) => map.set(c.id, c.name));
@@ -311,6 +357,12 @@ export default function OwnerDashboard() {
           onClick={() => setTab("categories")}
         >
           Categories
+        </button>
+        <button
+          className={`tab ${tab === "orders" ? "active" : ""}`}
+          onClick={() => setTab("orders")}
+        >
+          Orders
         </button>
       </div>
 
@@ -617,9 +669,7 @@ export default function OwnerDashboard() {
                           <td>
                             <span
                               className={`badge ${
-                                item.isAvailable
-                                  ? "badge-delivered"
-                                  : "badge-cancelled"
+                                item.isAvailable ? "badge-delivered" : "badge-cancelled"
                               }`}
                             >
                               {item.isAvailable ? "Available" : "Unavailable"}
@@ -681,7 +731,11 @@ export default function OwnerDashboard() {
           ) : (
             <div className="category-pills">
               {categories.map((c) => (
-                <span className="pill" key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span
+                  className="pill"
+                  key={c.id}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+                >
                   {c.name}
                   <button
                     className="btn btn-danger btn-sm"
@@ -692,6 +746,94 @@ export default function OwnerDashboard() {
                   </button>
                 </span>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "orders" && (
+        <div>
+          <div className="flex-between" style={{ marginBottom: 16 }}>
+            <p className="muted">
+              {orders.length} order{orders.length === 1 ? "" : "s"} total
+            </p>
+            <button className="btn btn-outline btn-sm" onClick={loadOrders}>
+              ↻ Refresh
+            </button>
+          </div>
+
+          {ordersLoading ? (
+            <div className="spinner-wrap">
+              <div className="spinner" />
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="empty-state">
+              <h3>No orders yet</h3>
+              <p>Orders placed by customers will appear here.</p>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Order #</th>
+                    <th>Customer</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th>Update status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((order) => (
+                    <tr key={order.id}>
+                      <td>#{order.id}</td>
+                      <td>{order.userName ?? order.userId ?? "—"}</td>
+                      <td>
+                        {order.items?.length > 0 ? (
+                          <ul style={{ margin: 0, paddingLeft: 16, fontSize: "0.85rem" }}>
+                            {order.items.map((item, i) => (
+                              <li key={i}>
+                                {item.menuItemName ?? item.name} × {item.quantity}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td>
+                        {order.totalPrice != null
+                          ? `$${Number(order.totalPrice).toFixed(2)}`
+                          : "—"}
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${STATUS_BADGE[order.status] ?? ""}`}
+                        >
+                          {order.status}
+                        </span>
+                      </td>
+                      <td>
+                        <select
+                          value={order.status}
+                          disabled={updatingOrderId === order.id}
+                          onChange={(e) =>
+                            handleUpdateOrderStatus(order.id, e.target.value)
+                          }
+                          style={{ fontSize: "0.85rem" }}
+                        >
+                          {ORDER_STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
